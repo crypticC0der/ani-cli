@@ -192,11 +192,6 @@ open_episode () {
 	esac
 
 	if [ $is_download -eq 0 ]; then
-		# write anime and episode number
-		sed -E "
-			s/^${selection_id}\t[0-9]+/${selection_id}\t$((episode+1))/
-		" "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
-
 		setsid -f $player_fn "$video_url" >/dev/null 2>&1
 	else
 		printf "Downloading episode $episode ...\n"
@@ -209,6 +204,13 @@ open_episode () {
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
 	fi
+}
+
+# Update the history when the user chooses
+update_history () {
+	sed -E "
+		s/^${selection_id}\t[0-9]+/${selection_id}\t$((episode+1))/
+	" "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
 }
 
 ############
@@ -283,17 +285,25 @@ episode=${ep_choice_end:-$ep_choice_start}
 
 while :; do
 	printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" $episode $last_ep_number
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "next episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "previous episode"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "exit"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
 	printf "${c_blue}Enter choice:${c_green} "
-	read choice
-	printf "$c_reset"
+	read -n 1 -r choice
+	printf "$c_reset\n"
 	case $choice in
 		n)
+			update_history
 			episode=$((episode + 1))
 			;;
+
+		N)
+			episode=$((episode + 1))
+			;;
+
 		p)
 			episode=$((episode - 1))
 			;;
@@ -305,8 +315,11 @@ while :; do
 			;;
 
 		q)
+			update_history
 			break;;
 
+		Q)
+			break;;
 		*)
 			die "invalid choice"
 			;;
