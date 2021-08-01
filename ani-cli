@@ -223,6 +223,17 @@ trackma_update () {
 	trackma -a "$trackma_account_no" send
 }
 
+settings () {
+	echo "1 - Delete anime from history."
+	read -r -p "Make a choice: " settings_choice
+	case "$settings_choice" in
+		1)
+			anime_to_delete=$(awk '{print $1}' "$logfile" | fzf --layout=reverse)
+			sed -i "/$anime_to_delete/d" "$logfile"
+			sed -i "/$anime_to_delete/d" "$trackmafile"
+	esac
+}
+
 ############
 # Start Up #
 ############
@@ -235,7 +246,7 @@ dep_ch "$player_fn" "curl" "sed" "grep" "trackma" "awk" "fzf"
 # option parsing
 is_download=0
 scrape=query
-while getopts 'hdH' OPT; do
+while getopts 'hdHs' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -246,6 +257,10 @@ while getopts 'hdH' OPT; do
 			;;
 		H)
 			scrape=history
+			;;
+		s)
+			settings
+			exit 0
 			;;
 	esac
 done
