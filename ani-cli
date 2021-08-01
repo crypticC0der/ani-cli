@@ -229,8 +229,12 @@ settings () {
 	case "$settings_choice" in
 		1)
 			anime_to_delete=$(awk '{print $1}' "$logfile" | fzf --layout=reverse)
-			sed -i "/$anime_to_delete/d" "$logfile"
-			sed -i "/$anime_to_delete/d" "$trackmafile"
+			if [ -n "$anime_to_delete" ]; then
+				sed -i "/$anime_to_delete/d" "$logfile"
+				sed -i "/$anime_to_delete/d" "$trackmafile"
+			else
+				die "No anime selected."
+			fi
 	esac
 }
 
