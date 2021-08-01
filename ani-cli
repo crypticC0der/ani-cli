@@ -225,6 +225,7 @@ trackma_update () {
 
 settings () {
 	echo "1 - Delete anime from history."
+	echo "2 - Sort anime in history."
 	read -r -p "Make a choice: " settings_choice
 	case "$settings_choice" in
 		1)
@@ -235,6 +236,14 @@ settings () {
 			else
 				die "No anime selected."
 			fi
+			;;
+		2)
+			echo "Sorting logfile..."
+			sort "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
+			echo "Sorting trackmafile..."
+			sort "$trackmafile" > "${trackmafile}.new" && mv "${trackmafile}.new" "$trackmafile"
+			echo "Done."
+			;;
 	esac
 }
 
