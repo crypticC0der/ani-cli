@@ -1,11 +1,13 @@
 #!/bin/sh
 
-# dependencies: grep sed curl video_player
+# dependencies: grep sed curl video_player trackma awk fzf
 # video_player ( needs to be able to play urls )
 player_fn="mpv"
+trackma_account_no=1
 
 prog="ani-cli"
 logfile="${XDG_CACHE_HOME:-$HOME/.cache}/ani-hsts"
+trackmafile="${XDG_CACHE_HOME:-$HOME/.cache}/ani-trackma"
 
 c_red="\033[1;31m"
 c_green="\033[1;32m"
@@ -94,8 +96,9 @@ get_search_query () {
 	fi
 }
 
-# create history file
+# create history and trackma file
 [ -f "$logfile" ] || : > "$logfile"
+[ -f "$trackmafile" ] || : > "$trackmafile"
 
 #####################
 ## Anime selection ##
@@ -213,6 +216,13 @@ update_history () {
 	" "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
 }
 
+trackma_update () {
+	anilist_name=$1
+	current_episode=$2
+	trackma -a "$trackma_account_no" update "$anilist_name" "$current_episode"
+	trackma -a "$trackma_account_no" send
+}
+
 ############
 # Start Up #
 ############
@@ -220,7 +230,7 @@ update_history () {
 # to clear the colors when exited using SIGINT
 trap "printf '$c_reset'" INT HUP
 
-dep_ch "$player_fn" "curl" "sed" "grep"
+dep_ch "$player_fn" "curl" "sed" "grep" "trackma" "awk" "fzf"
 
 # option parsing
 is_download=0
@@ -277,6 +287,23 @@ esac
 grep -q -w "${selection_id}" "$logfile" ||
 	printf "%s\t%d\n" "$selection_id" $((episode+1)) >> "$logfile"
 
+# While updating Anilist using trackma, we need to use the name of the anime present in Anilist. Hence the need for trackmafile
+while [ -z "$trackma_id" ]; do
+	trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
+	if [ -z "$trackma_id" ]; then
+		fzf_select=$(trackma -a "$trackma_account_no" list | fzf | sed "s/\x1b//g;s/^[[|;0-9m ]*//g;s/\[0m//g;s:[|/0-9\? ]*$::g;s/[.]*//g;s|!|\!|g")
+		read -r -p "Is \"$fzf_select\" the correct name? [y/n]" fzf_choice
+		case "$fzf_choice" in
+			y|Y)
+				anime_name=$fzf_select;;
+			*)
+				trackma -a "$trackma_account" list
+				read -r -p "Copy the name of $selection_id from above: " anime_name;;
+		esac
+		printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
+	fi
+done
+
 for ep in $episodes
 do
 	open_episode "$selection_id" "$ep"
@@ -296,6 +323,7 @@ while :; do
 	printf "$c_reset\n"
 	case $choice in
 		n)
+			trackma_update "$trackma_id" "$episode"
 			update_history
 			episode=$((episode + 1))
 			;;
@@ -315,6 +343,7 @@ while :; do
 			;;
 
 		q)
+			trackma_update "$trackma_id" "$episode"
 			update_history
 			break;;
 
