@@ -320,13 +320,21 @@ grep -q -w "${selection_id}" "$logfile" ||
 while [ -z "$trackma_id" ]; do
 	trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
 	if [ -z "$trackma_id" ]; then
-		fzf_select=$(trackma -a "$trackma_account_no" list | fzf | sed "s/\x1b//g;s/^[[|;0-9m ]*//g;s/\[0m//g;s:[|/0-9\? ]*$::g;s/[.]*//g;s|!|\!|g")
+		fzf_select=$(trackma -a "$trackma_account_no" list | sed \
+			-e "s/\x1b//g" \
+			-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
+			-e "s:[|/0-9\? ]*$::g" \
+			-e "s/\.*$//g" \
+			-e "s/\[0m$//g" \
+			-e "s/^[[;0-9]*m//g" \
+			-e "/results$/d" \
+			-e "/Index  Title/d" | fzf --layout=reverse)
 		read -r -p "Is \"$fzf_select\" the correct name? [y/n]" fzf_choice
 		case "$fzf_choice" in
 			y|Y)
 				anime_name=$fzf_select;;
 			*)
-				trackma -a "$trackma_account" list
+				trackma -a "$trackma_account_no" list
 				read -r -p "Copy the name of $selection_id from above: " anime_name;;
 		esac
 		printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
@@ -340,7 +348,7 @@ done
 episode=${ep_choice_end:-$ep_choice_start}
 
 while :; do
-	printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" $episode $last_ep_number
+	printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$trackma_id" $episode $last_ep_number
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
