@@ -1,10 +1,11 @@
 #!/bin/sh
 
-# dependencies: grep sed curl video_player trackma awk fzf
-# optional dependencies: dmenu
+# dependencies: grep sed curl video_player awk fzf
+# optional dependencies: trackma dmenu
 # video_player ( needs to be able to play urls )
 player_fn="mpv"
 dmenu="no"
+use_trackma="yes"
 trackma_account_no=1
 
 prog="ani-cli"
@@ -281,7 +282,8 @@ settings () {
 # to clear the colors when exited using SIGINT
 trap "printf '$c_reset'" INT HUP
 
-dep_ch "$player_fn" "curl" "sed" "grep" "trackma" "awk" "fzf"
+dep_ch "$player_fn" "curl" "sed" "grep" "awk" "fzf"
+[ "$use_trackma" = "yes" ] && dep_ch "trackma"
 [ "$dmenu" = "yes" ] && dep_ch "dmenu"
 
 # option parsing
@@ -349,32 +351,34 @@ grep -q -w "${selection_id}" "$logfile" ||
 	printf "%s\t%d\n" "$selection_id" $((episode+1)) >> "$logfile"
 
 # While updating Anilist using trackma, we need to use the name of the anime present in Anilist. Hence the need for trackmafile
-trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
-if [ -z "$trackma_id" ]; then
-	if [ "$dmenu" = "yes" ]; then
-		anime_name=$(trackma -a "$trackma_account_no" list | sed \
-			-e "s/\x1b//g" \
-			-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
-			-e "s:[|/0-9\? ]*$::g" \
-			-e "s/\.*$//g" \
-			-e "s/\[0m$//g" \
-			-e "s/^[[;0-9]*m//g" \
-			-e "/results$/d" \
-			-e "/Index  Title/d" | dmenu -i -l 30 -p "Select an anime: (If anime not found, add it to anilist first)")
-	else
-		anime_name=$(trackma -a "$trackma_account_no" list | sed \
-			-e "s/\x1b//g" \
-			-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
-			-e "s:[|/0-9\? ]*$::g" \
-			-e "s/\.*$//g" \
-			-e "s/\[0m$//g" \
-			-e "s/^[[;0-9]*m//g" \
-			-e "/results$/d" \
-			-e "/Index  Title/d" | fzf --layout=reverse --prompt "Select an anime: (If anime not found, add it to anilist first)")
-	fi
-	[ -z "$anime_name" ] && die "No anime selected. In case the anime you wanted was not available to choose, then you probably haven't added the anime to your anilist."
-	printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
+if [ "$use_trackma" = "yes" ]; then
 	trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
+	if [ -z "$trackma_id" ]; then
+		if [ "$dmenu" = "yes" ]; then
+			anime_name=$(trackma -a "$trackma_account_no" list | sed \
+				-e "s/\x1b//g" \
+				-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
+				-e "s:[|/0-9\? ]*$::g" \
+				-e "s/\.*$//g" \
+				-e "s/\[0m$//g" \
+				-e "s/^[[;0-9]*m//g" \
+				-e "/results$/d" \
+				-e "/Index  Title/d" | dmenu -i -l 30 -p "Select an anime: (If anime not found, add it to anilist first)")
+		else
+			anime_name=$(trackma -a "$trackma_account_no" list | sed \
+				-e "s/\x1b//g" \
+				-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
+				-e "s:[|/0-9\? ]*$::g" \
+				-e "s/\.*$//g" \
+				-e "s/\[0m$//g" \
+				-e "s/^[[;0-9]*m//g" \
+				-e "/results$/d" \
+				-e "/Index  Title/d" | fzf --layout=reverse --prompt "Select an anime: (If anime not found, add it to anilist first)")
+		fi
+		[ -z "$anime_name" ] && die "No anime selected. In case the anime you wanted was not available to choose, then you probably haven't added the anime to your anilist."
+		printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
+		trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
+	fi
 fi
 
 for ep in $episodes
@@ -387,12 +391,12 @@ while :; do
 	if [ "$dmenu" = "yes" ]; then
 		choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
 	else
-		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$trackma_id" $episode $last_ep_number
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
+		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" $episode $last_ep_number
+		[ "$use_trackma" = "yes" ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
 		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
 		printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
 		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
+		[ "$use_trackma" = "yes" ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
 		printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
 		printf "${c_blue}Enter choice:${c_green} "
 		read -n 1 -r choice

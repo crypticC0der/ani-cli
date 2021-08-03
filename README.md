@@ -34,10 +34,10 @@ This would open/download episodes 1 2 3 4 5 6
 * mpv
 * awk
 * fzf
-* trackma
 
 ## Optional Dependencies
 
+* trackma
 * dmenu
 
 ## Trackma 
@@ -46,6 +46,8 @@ While the original script was only meant to used to watch/download anime through
 
 Note: Trackma account number 1 is hard-coded to the script. If the account number is different that that, it can be changed in the script at the top.
 
+By default, trackma is not enabled. However, it can be toggled by changing the `use_trackma` variable to "yes" or "no".
+
 ## Dmenu
 
-Dmenu can be used for various tasks like selecting anime, episodes etc or for choosing to update the show or not. By default, dmenu is not enabled. However, it can be toggled by changing the dmenu variable to "yes" or "no".
+Dmenu can be used for various tasks like selecting anime, episodes etc or for choosing to update the show or not. By default, dmenu is not enabled. However, it can be toggled by changing the `dmenu` variable to "yes" or "no".
