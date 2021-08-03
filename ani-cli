@@ -1,8 +1,10 @@
 #!/bin/sh
 
 # dependencies: grep sed curl video_player trackma awk fzf
+# optional dependencies: dmenu
 # video_player ( needs to be able to play urls )
 player_fn="mpv"
+dmenu="no"
 trackma_account_no=1
 
 prog="ani-cli"
@@ -90,8 +92,12 @@ dep_ch () {
 # get query
 get_search_query () {
 	if [ -z "$*" ]; then
-		printf "Search Anime: "
-		read -r query
+		if [ "$dmenu" = "yes" ]; then
+			query=$(echo "" | dmenu -p "Search Anime: ")
+		else
+			printf "Search Anime: "
+			read -r query
+		fi
 	else
 		query=$*
 	fi
@@ -151,6 +157,17 @@ anime_selection () {
 	EOF
 }
 
+dmenu_anime_selection () {
+	search_results=$*
+	selection_id=$(echo "$search_results" | tr " " "\n" | dmenu -l 30)
+
+	[ -z "$selection_id" ] && die "Nothing Selected."
+
+	read last_ep_number <<-EOF
+	$(search_eps "$selection_id")
+	EOF
+}
+
 ##################
 ## Ep selection ##
 ##################
@@ -163,6 +180,10 @@ episode_selection () {
 	read ep_choice_start ep_choice_end
 	printf "$c_reset"
 
+}
+
+dmenu_episode_selection () {
+	ep_choice_start=$(echo "" | dmenu -p "Choose episode [1-$last_ep_number]")
 }
 
 open_episode () {
@@ -196,7 +217,8 @@ open_episode () {
 	esac
 
 	if [ $is_download -eq 0 ]; then
-		setsid -f $player_fn "$video_url" >/dev/null 2>&1
+		#setsid -f $player_fn "$video_url" >/dev/null 2>&1
+		$player_fn "$video_url" >/dev/null 2>&1
 	else
 		printf "Downloading episode $episode ...\n"
 		printf "%s\n" "$video_url"
@@ -230,7 +252,11 @@ settings () {
 	read -n 1 -r -p "Make a choice: " settings_choice
 	case "$settings_choice" in
 		1)
-			anime_to_delete=$(awk '{print $1}' "$logfile" | fzf --layout=reverse)
+			if [ "$dmenu" = "yes" ]; then
+				anime_to_delete=$(awk '{print $1}' "$logfile" | dmenu -i -l 30 -p "Select anime to remove: ")
+			else
+				anime_to_delete=$(awk '{print $1}' "$logfile" | fzf --layout=reverse --prompt "Select anime to remove: ")
+			fi
 			if [ -n "$anime_to_delete" ]; then
 				sed -i "/$anime_to_delete/d" "$logfile"
 				sed -i "/$anime_to_delete/d" "$trackmafile"
@@ -256,6 +282,7 @@ settings () {
 trap "printf '$c_reset'" INT HUP
 
 dep_ch "$player_fn" "curl" "sed" "grep" "trackma" "awk" "fzf"
+[ "$dmenu" = "yes" ] && dep_ch "dmenu"
 
 # option parsing
 is_download=0
@@ -289,13 +316,18 @@ case $scrape in
 		get_search_query "$*"
 		search_results=$(search_anime "$query")
 		[ -z "$search_results" ] && die "No search results found"
-		anime_selection "$search_results"
-		episode_selection
+		if [ "$dmenu" = "yes" ]; then
+			dmenu_anime_selection "$search_results"
+			dmenu_episode_selection
+		else
+			anime_selection "$search_results"
+			episode_selection
+		fi
 		;;
 	history)
 		search_results=$(sed -n -E 's/\t[0-9]*//p' "$logfile")
 		[ -z "$search_results" ] && die "History is empty"
-		anime_selection "$search_results"
+		[ "$dmenu" = "yes" ] && dmenu_anime_selection "$search_results" || anime_selection "$search_results"
 		ep_choice_start=$(sed -n -E "s/${selection_id}\t//p" "$logfile")
 		;;
 esac
@@ -317,10 +349,10 @@ grep -q -w "${selection_id}" "$logfile" ||
 	printf "%s\t%d\n" "$selection_id" $((episode+1)) >> "$logfile"
 
 # While updating Anilist using trackma, we need to use the name of the anime present in Anilist. Hence the need for trackmafile
-while [ -z "$trackma_id" ]; do
-	trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
-	if [ -z "$trackma_id" ]; then
-		fzf_select=$(trackma -a "$trackma_account_no" list | sed \
+trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
+if [ -z "$trackma_id" ]; then
+	if [ "$dmenu" = "yes" ]; then
+		anime_name=$(trackma -a "$trackma_account_no" list | sed \
 			-e "s/\x1b//g" \
 			-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
 			-e "s:[|/0-9\? ]*$::g" \
@@ -328,18 +360,22 @@ while [ -z "$trackma_id" ]; do
 			-e "s/\[0m$//g" \
 			-e "s/^[[;0-9]*m//g" \
 			-e "/results$/d" \
-			-e "/Index  Title/d" | fzf --layout=reverse)
-		read -r -p "Is \"$fzf_select\" the correct name? [y/n]" fzf_choice
-		case "$fzf_choice" in
-			y|Y)
-				anime_name=$fzf_select;;
-			*)
-				trackma -a "$trackma_account_no" list
-				read -r -p "Copy the name of $selection_id from above: " anime_name;;
-		esac
-		printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
+			-e "/Index  Title/d" | dmenu -i -l 30 -p "Select an anime: (If anime not found, add it to anilist first)")
+	else
+		anime_name=$(trackma -a "$trackma_account_no" list | sed \
+			-e "s/\x1b//g" \
+			-e "s/^|[[:space:]]*[0-9]*[[:space:]]*//g" \
+			-e "s:[|/0-9\? ]*$::g" \
+			-e "s/\.*$//g" \
+			-e "s/\[0m$//g" \
+			-e "s/^[[;0-9]*m//g" \
+			-e "/results$/d" \
+			-e "/Index  Title/d" | fzf --layout=reverse --prompt "Select an anime: (If anime not found, add it to anilist first)")
 	fi
-done
+	[ -z "$anime_name" ] && die "No anime selected. In case the anime you wanted was not available to choose, then you probably haven't added the anime to your anilist."
+	printf "%s\t%s\n" "$selection_id" "\"$anime_name\"" >> "$trackmafile"
+	trackma_id=$(grep "$selection_id" "$trackmafile" | awk -F\" '{print $2}')
+fi
 
 for ep in $episodes
 do
@@ -348,16 +384,20 @@ done
 episode=${ep_choice_end:-$ep_choice_start}
 
 while :; do
-	printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$trackma_id" $episode $last_ep_number
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
-	printf "${c_blue}Enter choice:${c_green} "
-	read -n 1 -r choice
-	printf "$c_reset\n"
+	if [ "$dmenu" = "yes" ]; then
+		choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
+	else
+		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$trackma_id" $episode $last_ep_number
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
+		printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
+		printf "${c_blue}Enter choice:${c_green} "
+		read -n 1 -r choice
+		printf "$c_reset\n"
+	fi
 	case $choice in
 		n)
 			trackma_update "$trackma_id" "$episode"
