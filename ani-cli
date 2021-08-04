@@ -29,6 +29,7 @@ help_text () {
 	 -h	 show this help text
 	 -d	 download episode
 	 -s	 settings
+	 -p	 player
 	 -H	 continue where you left off
 	EOF
 }
@@ -289,8 +290,13 @@ dep_ch "$player_fn" "curl" "sed" "grep" "awk" "fzf"
 # option parsing
 is_download=0
 scrape=query
-while getopts 'hdHs' OPT; do
+while getopts ':hdHsp:' OPT; do
 	case $OPT in
+		:)
+      printf "$c_red%s.$c_reset\n" "Please provide an argument to -$OPTARG" >&2
+			help_text | grep -e "USAGE" -e "\-$OPTARG"
+      exit 1
+      ;;
 		h)
 			help_text
 			exit 0
@@ -305,6 +311,16 @@ while getopts 'hdHs' OPT; do
 			settings
 			exit 0
 			;;
+		p)
+			original_player="$player_fn"
+			player_fn="$OPTARG"
+			[ "$original_player" != "$player_fn" ] && printf "$c_green%s.$c_reset\n" "Changed player from $original_player to $player_fn"
+			;;
+		?)
+			echo "Invalid option: -${OPTARG}."
+			help_text
+			exit 1
+      ;;
 	esac
 done
 shift $((OPTIND - 1))
