@@ -25,12 +25,13 @@ help_text () {
 	while IFS= read line; do
 		printf "%s\n" "$line"
 	done <<-EOF
-	USAGE: $prog <query>
-	 -h	 show this help text
-	 -d	 download episode
-	 -s	 settings
-	 -p	 player
-	 -H	 continue where you left off
+	USAGE: $prog [OPTIONS] <query>
+	 -h	 	Show this help text
+	 -H	 	Continue where you left off
+	 -s	 	Settings
+	 -p [player]	Choose a player which can stream the episodes
+	 -t [number]	Toggle trackma (1 for using and 0 for not using trackma)
+	 -d	 	Download episode
 	EOF
 }
 
@@ -290,13 +291,13 @@ dep_ch "$player_fn" "curl" "sed" "grep" "awk" "fzf"
 # option parsing
 is_download=0
 scrape=query
-while getopts ':hdHsp:' OPT; do
+while getopts ':hdHst:p:' OPT; do
 	case $OPT in
 		:)
-      printf "$c_red%s.$c_reset\n" "Please provide an argument to -$OPTARG" >&2
+			printf "$c_red%s.$c_reset\n" "Please provide an argument to -$OPTARG" >&2
 			help_text | grep -e "USAGE" -e "\-$OPTARG"
-      exit 1
-      ;;
+			exit 1
+			;;
 		h)
 			help_text
 			exit 0
@@ -310,6 +311,19 @@ while getopts ':hdHsp:' OPT; do
 		s)
 			settings
 			exit 0
+			;;
+		t)
+			re='[01]'
+			if ! [[ $OPTARG =~ $re ]] ; then
+				echo "Invalid argument passed to -t" >&2
+				help_text | grep -e "USAGE" -e "\-$OPT"
+				exit 1
+			fi
+			if [ "$OPTARG" -eq 1 ]; then
+				use_trackma="yes"
+			else
+				use_trackma="no"
+			fi
 			;;
 		p)
 			original_player="$player_fn"
