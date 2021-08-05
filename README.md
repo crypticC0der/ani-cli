@@ -12,7 +12,7 @@ This tool scrapes the site [gogoanime](https://gogoanime.vc).
 	ani-cli <query>
 
 	# download anime
-	ani-cli -d <query>
+	ani-cli -D <query>
 
 	# resume watching anime
 	ani-cli -H
@@ -22,6 +22,12 @@ This tool scrapes the site [gogoanime](https://gogoanime.vc).
 
 	# player
 	ani-cli -p <player>
+
+	# toggle trackma
+	ani-cli -t <0/1>
+
+	# toggle dmenu
+	ani-cli -d <0/1>
 
 Multiple episodes can be viewed/downloaded by giving the episode range like so
 

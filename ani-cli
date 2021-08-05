@@ -31,7 +31,8 @@ help_text () {
 	 -s	 	Settings
 	 -p [player]	Choose a player which can stream the episodes
 	 -t [number]	Toggle trackma (1 for using and 0 for not using trackma)
-	 -d	 	Download episode
+	 -d [number]	Toggle dmenu (1 for using and 0 for not using dmenu)
+	 -D	 	Download episode
 	EOF
 }
 
@@ -291,7 +292,7 @@ dep_ch "$player_fn" "curl" "sed" "grep" "awk" "fzf"
 # option parsing
 is_download=0
 scrape=query
-while getopts ':hdHst:p:' OPT; do
+while getopts ':hd:DHst:p:' OPT; do
 	case $OPT in
 		:)
 			printf "$c_red%s.$c_reset\n" "Please provide an argument to -$OPTARG" >&2
@@ -302,7 +303,7 @@ while getopts ':hdHst:p:' OPT; do
 			help_text
 			exit 0
 			;;
-		d)
+		D)
 			is_download=1
 			;;
 		H)
@@ -311,6 +312,19 @@ while getopts ':hdHst:p:' OPT; do
 		s)
 			settings
 			exit 0
+			;;
+		d)
+			re='[01]'
+			if ! [[ $OPTARG =~ $re ]] ; then
+				echo "Invalid argument passed to -d" >&2
+				help_text | grep -e "USAGE" -e "\-$OPT"
+				exit 1
+			fi
+			if [ "$OPTARG" -eq 1 ]; then
+				dmenu="yes"
+			else
+				dmenu="no"
+			fi
 			;;
 		t)
 			re='[01]'
@@ -334,7 +348,7 @@ while getopts ':hdHst:p:' OPT; do
 			echo "Invalid option: -${OPTARG}."
 			help_text
 			exit 1
-      ;;
+			;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -342,6 +356,9 @@ shift $((OPTIND - 1))
 ########
 # main #
 ########
+
+# Open vlc in fullscreen and close it after playing
+[ "$player_fn" = "vlc" ] && player_fn="$player_fn --fullscreen --play-and-exit"
 
 case $scrape in
 	query)
@@ -419,7 +436,11 @@ episode=${ep_choice_end:-$ep_choice_start}
 
 while :; do
 	if [ "$dmenu" = "yes" ]; then
-		choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
+		if [ "$use_trackma" = "yes" ]; then
+			choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
+		else
+			choice=$(printf "N - watch next episode\np - watch previous episode\ns - select episode\nQ - exit" | dmenu -l 6 | awk '{print $1}')
+		fi
 	else
 		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" $episode $last_ep_number
 		[ "$use_trackma" = "yes" ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
