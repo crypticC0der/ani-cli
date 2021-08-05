@@ -118,8 +118,8 @@ get_search_query () {
 anime_selection () {
 	search_results=$*
 	menu_format_string='[%d] %s\n'
-	menu_format_string_c1="$c_blue[$c_cyan%d$c_blue] $c_reset%s\n"
-	menu_format_string_c2="$c_blue[$c_cyan%d$c_blue] $c_yellow%s$c_reset\n"
+	menu_format_string_c1="${c_blue}[$c_cyan%d$c_blue] $c_reset%s\n"
+	menu_format_string_c2="${c_blue}[$c_cyan%d$c_blue] $c_yellow%s$c_reset\n"
 
 	count=1
 	while read anime_id; do
@@ -180,7 +180,7 @@ episode_selection () {
 	[ $is_download -eq 1 ] &&
 		printf "Range of episodes can be specified: start_number end_number\n"
 
-	printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
+	printf "${c_blue}Choose episode ${c_cyan}[1-%d]$c_reset:$c_green " $last_ep_number
 	read ep_choice_start ep_choice_end
 	printf "$c_reset"
 
@@ -198,12 +198,12 @@ open_episode () {
 	printf '\x1B[2J\x1B[1;1H'
 	if [ $episode -lt 1 ] || [ $episode -gt $last_ep_number ]; then
 		err "Episode out of range"
-		printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
+		printf "${c_blue}Choose episode ${c_cyan}[1-%d]$c_reset:$c_green " $last_ep_number
 		read episode
 		printf "$c_reset"
 	fi
 
-	printf "Getting data for episode %d\n" $episode
+	printf "Getting data for episode %d/%d\n" "$episode" "$last_ep_number"
 
 	video_url=$(get_links "$anime_id" "$episode")
 
@@ -224,7 +224,7 @@ open_episode () {
 		#setsid -f $player_fn "$video_url" >/dev/null 2>&1
 		$player_fn "$video_url" >/dev/null 2>&1
 	else
-		printf "Downloading episode $episode ...\n"
+		printf "Downloading episode %s ...\n" "$episode"
 		printf "%s\n" "$video_url"
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
@@ -251,9 +251,11 @@ trackma_update () {
 }
 
 settings () {
-	echo "1 - Delete anime from history."
-	echo "2 - Sort anime in history."
-	read -n 1 -r -p "Make a choice: " settings_choice
+	printf "${c_blue}[${c_cyan}1${c_blue}]$c_yellow Delete anime from history.$c_reset\n"
+	printf "${c_blue}[${c_cyan}2${c_blue}]$c_reset Sort anime in history.\n"
+	printf "${c_blue}Enter choice:${c_green} "
+	read -r settings_choice
+	printf "$c_reset"
 	case "$settings_choice" in
 		1)
 			if [ "$dmenu" = "yes" ]; then
@@ -269,7 +271,7 @@ settings () {
 			fi
 			;;
 		2)
-			printf "\n\nSorting logfile...\n"
+			echo "Sorting logfile..."
 			sort "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
 			echo "Sorting trackmafile..."
 			sort "$trackmafile" > "${trackmafile}.new" && mv "${trackmafile}.new" "$trackmafile"
@@ -314,26 +316,22 @@ while getopts ':hd:DHst:p:' OPT; do
 			exit 0
 			;;
 		d)
-			re='[01]'
-			if ! [[ $OPTARG =~ $re ]] ; then
-				echo "Invalid argument passed to -d" >&2
+			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
+				printf "${c_red}Invalid argument passed to -d\n${c_reset}" >&2
 				help_text | grep -e "USAGE" -e "\-$OPT"
 				exit 1
-			fi
-			if [ "$OPTARG" -eq 1 ]; then
+			elif [ "$OPTARG" -eq 1 ]; then
 				dmenu="yes"
 			else
 				dmenu="no"
 			fi
 			;;
 		t)
-			re='[01]'
-			if ! [[ $OPTARG =~ $re ]] ; then
-				echo "Invalid argument passed to -t" >&2
+			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
+				printf "${c_red}Invalid argument passed to -t\n${c_reset}" >&2
 				help_text | grep -e "USAGE" -e "\-$OPT"
 				exit 1
-			fi
-			if [ "$OPTARG" -eq 1 ]; then
+			elif [ "$OPTARG" -eq 1 ]; then
 				use_trackma="yes"
 			else
 				use_trackma="no"
@@ -357,7 +355,7 @@ shift $((OPTIND - 1))
 # main #
 ########
 
-# Open vlc in fullscreen and close it after playing
+# If vlc is used as a player, open vlc in fullscreen and close it after playing
 [ "$player_fn" = "vlc" ] && player_fn="$player_fn --fullscreen --play-and-exit"
 
 case $scrape in
@@ -376,7 +374,11 @@ case $scrape in
 	history)
 		search_results=$(sed -n -E 's/\t[0-9]*//p' "$logfile")
 		[ -z "$search_results" ] && die "History is empty"
-		[ "$dmenu" = "yes" ] && dmenu_anime_selection "$search_results" || anime_selection "$search_results"
+		if [ "$dmenu" = "yes" ]; then
+			dmenu_anime_selection "$search_results"
+		else
+			anime_selection "$search_results"
+		fi
 		ep_choice_start=$(sed -n -E "s/${selection_id}\t//p" "$logfile")
 		;;
 esac
@@ -442,15 +444,15 @@ while :; do
 			choice=$(printf "N - watch next episode\np - watch previous episode\ns - select episode\nQ - exit" | dmenu -l 6 | awk '{print $1}')
 		fi
 	else
-		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" $episode $last_ep_number
-		[ "$use_trackma" = "yes" ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
-		[ "$use_trackma" = "yes" ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
-		printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
+		printf "${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" "$episode" "$last_ep_number"
+		[ "$use_trackma" = "yes" ] && printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
+		[ "$use_trackma" = "yes" ] && printf "${c_blue}[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
 		printf "${c_blue}Enter choice:${c_green} "
-		read -n 1 -r choice
+		read -r choice
 		printf "$c_reset\n"
 	fi
 	case $choice in
@@ -468,7 +470,7 @@ while :; do
 			episode=$((episode - 1))
 			;;
 
-		s)	printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
+		s)	printf "${c_blue}Choose episode ${c_cyan}[1-%d]$c_reset:$c_green " $last_ep_number
 			read episode
 			printf "$c_reset"
 			[ "$episode" -eq "$episode" ] 2>/dev/null || die "Invalid number entered"
