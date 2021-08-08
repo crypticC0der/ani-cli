@@ -46,6 +46,14 @@ err () {
 	printf "$c_red%s$c_reset\n" "$*" >&2
 }
 
+# Error when invalid argument is passed
+wrong_args () {
+	flag="$1"
+	printf "${c_red}Invalid argument passed to -%s\n${c_reset}" "$flag" >&2
+	help_text | grep -e "USAGE" -e "\-$flag"
+	exit 1
+}
+
 search_anime () {
 	# get anime name along with its id
 	search=$1
@@ -187,7 +195,9 @@ episode_selection () {
 }
 
 dmenu_episode_selection () {
-	ep_choice_start=$(echo "" | dmenu -p "Choose episode [1-$last_ep_number]")
+	episode_choice=$(echo "" | dmenu -p "Choose episode [1-$last_ep_number]")
+	ep_choice_start=$(echo "$episode_choice" | awk '{print $1}')
+	ep_choice_end=$(echo "$episode_choice" | awk '{print $2}')
 }
 
 open_episode () {
@@ -306,7 +316,7 @@ dep_ch "$player_fn" "curl" "sed" "grep" "awk" "fzf"
 # option parsing
 is_download=0
 scrape=query
-while getopts ':hd:DHst:p:' OPT; do
+while getopts ':Dd:p:t:Hhs' OPT; do
 	case $OPT in
 		:)
 			printf "$c_red%s.$c_reset\n" "Please provide an argument to -$OPTARG" >&2
@@ -329,9 +339,7 @@ while getopts ':hd:DHst:p:' OPT; do
 			;;
 		d)
 			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
-				printf "${c_red}Invalid argument passed to -d\n${c_reset}" >&2
-				help_text | grep -e "USAGE" -e "\-$OPT"
-				exit 1
+				wrong_args "$OPT"
 			elif [ "$OPTARG" -eq 1 ]; then
 				dmenu="yes"
 			else
@@ -340,9 +348,7 @@ while getopts ':hd:DHst:p:' OPT; do
 			;;
 		t)
 			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
-				printf "${c_red}Invalid argument passed to -t\n${c_reset}" >&2
-				help_text | grep -e "USAGE" -e "\-$OPT"
-				exit 1
+				wrong_args "$OPT"
 			elif [ "$OPTARG" -eq 1 ]; then
 				use_trackma="yes"
 			else
@@ -350,9 +356,7 @@ while getopts ':hd:DHst:p:' OPT; do
 			fi
 			;;
 		p)
-			original_player="$player_fn"
-			player_fn="$OPTARG"
-			[ "$original_player" != "$player_fn" ] && printf "$c_green%s.$c_reset\n" "Changed player from $original_player to $player_fn"
+			[ "$OPTARG" != "$player_fn" ] && player_fn="$OPTARG" && printf "$c_green%s.$c_reset\n" "Changed player to $player_fn"
 			;;
 		?)
 			echo "Invalid option: -${OPTARG}."
