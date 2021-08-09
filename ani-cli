@@ -338,22 +338,18 @@ while getopts ':Dd:p:t:Hhs' OPT; do
 			exit 0
 			;;
 		d)
-			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
-				wrong_args "$OPT"
-			elif [ "$OPTARG" -eq 1 ]; then
-				dmenu="yes"
-			else
-				dmenu="no"
-			fi
+			case "$OPTARG" in
+				1) dmenu="yes";;
+				0) dmenu="no";;
+				*) wrong_args "$OPT";;
+			esac
 			;;
 		t)
-			if [ "$OPTARG" != 0 ] && [ "$OPTARG" != 1 ] ; then
-				wrong_args "$OPT"
-			elif [ "$OPTARG" -eq 1 ]; then
-				use_trackma="yes"
-			else
-				use_trackma="no"
-			fi
+			case "$OPTARG" in
+				1) trackma="yes";;
+				0) trackma="no";;
+				*) wrong_args "$OPT";;
+			esac
 			;;
 		p)
 			[ "$OPTARG" != "$player_fn" ] && player_fn="$OPTARG" && printf "$c_green%s.$c_reset\n" "Changed player to $player_fn"
@@ -438,18 +434,14 @@ episode=${ep_choice_end:-$ep_choice_start}
 
 while :; do
 	if [ "$dmenu" = "yes" ]; then
-		if [ "$use_trackma" = "yes" ]; then
-			choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
-		else
-			choice=$(printf "N - watch next episode\np - watch previous episode\ns - select episode\nQ - exit" | dmenu -l 6 | awk '{print $1}')
-		fi
+            choice=$(printf "n - update and watch next episode\nN - watch next episode\np - watch previous episode\ns - select episode\nq - update and exit\nQ - exit" | dmenu -l 6 | awk '{print $1}')
 	else
 		#printf "${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$selection_id" "$episode" "$last_ep_number"
-		[ "$use_trackma" = "yes" ] && printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "n" "update and watch next episode"
 		printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "N" "watch next episode"
 		printf "${c_blue}[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "watch previous episode"
 		printf "${c_blue}[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
-		[ "$use_trackma" = "yes" ] && printf "${c_blue}[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
+		printf "${c_blue}[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "update and exit"
 		printf "${c_blue}[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "Q" "exit"
 		printf "${c_blue}Enter choice:${c_green} "
 		read -r choice
@@ -457,7 +449,7 @@ while :; do
 	fi
 	case $choice in
 		n)
-			trackma_update "$trackma_id" "$episode"
+			[ "$use_trackma" = "yes" ] && trackma_update "$trackma_id" "$episode"
 			update_history
 			episode=$((episode + 1))
 			;;
@@ -470,14 +462,19 @@ while :; do
 			episode=$((episode - 1))
 			;;
 
-		s)	printf "${c_blue}Choose episode ${c_cyan}[1-%d]$c_reset:$c_green " $last_ep_number
-			read episode
-			printf "$c_reset"
+		s)
+			if [ "$dmenu" = "yes" ]; then
+				episode=$(echo "" | dmenu -p "Choose episode: ")
+			else
+				printf "${c_blue}Choose episode ${c_cyan}[1-%d]$c_reset:$c_green " $last_ep_number
+				read episode
+				printf "$c_reset"
+			fi
 			[ "$episode" -eq "$episode" ] 2>/dev/null || die "Invalid number entered"
 			;;
 
 		q)
-			trackma_update "$trackma_id" "$episode"
+			[ "$use_trackma" = "yes" ] && trackma_update "$trackma_id" "$episode"
 			update_history
 			break;;
 
