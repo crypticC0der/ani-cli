@@ -232,7 +232,8 @@ open_episode () {
 
 	if [ $is_download -eq 0 ]; then
 		#setsid -f $player_fn "$video_url" >/dev/null 2>&1
-		$player_fn "$video_url" >/dev/null 2>&1
+		$player_fn "$video_url" >/dev/null 2>&1 &
+		printf "\n${c_green}Currently playing %s episode ${c_cyan}%d/%d\n" "$anime_id" $episode $last_ep_number
 	else
 		printf "Downloading episode %s ...\n" "$episode"
 		printf "%s\n" "$video_url"
